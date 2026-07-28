@@ -51,7 +51,7 @@ jobs:
             sleep 5
           done
 
-      - name: Download URL list from GitHub raw
+      - name: Download URL list
         run: |
           curl -fL \
             "https://raw.githubusercontent.com/donkarboy/anihq_firesolver/refs/heads/main/anihq2%20(1).json" \
@@ -64,12 +64,22 @@ jobs:
           LIMIT:         ${{ github.event.inputs.limit }}
         run: python scraper.py
 
-      - name: Commit media_stream.json to repo
+      - name: Commit all results to repo
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add media_stream.json
+
+          # Stage main files + any rotated splits (.1 .2 .3 …)
+          git add media_stream.json              2>/dev/null || true
+          git add media_stream.json.*            2>/dev/null || true
+          git add no_media_found.txt             2>/dev/null || true
+          git add no_media_found.txt.*           2>/dev/null || true
+          git add media_found.txt                2>/dev/null || true
+          git add media_found.txt.*              2>/dev/null || true
+          git add already_processed_urls.txt     2>/dev/null || true
+          git add already_processed_urls.txt.*   2>/dev/null || true
+
           git diff --cached --quiet \
-            && echo "No new entries — nothing to commit." \
-            || git commit -m "chore: update media_stream.json (limit=${{ github.event.inputs.limit }})"
+            && echo "No changes to commit." \
+            || git commit -m "chore: scrape run — limit=${{ github.event.inputs.limit }}"
           git push
