@@ -1,0 +1,64 @@
+name: Scrape Stream URLs
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL to scrape"
+        required: false
+        default: "https://anihq.cc/watch/naruto-shippuuden-episode-500-english-dubbed/"
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    services:
+      flaresolverr:
+        image: ghcr.io/flaresolverr/flaresolverr:latest
+        ports:
+          - 8191:8191
+        env:
+          LOG_LEVEL: info
+        options: >-
+          --health-cmd "curl -sf http://localhost:8191/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 30s
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Wait for FlareSolverr to be healthy
+        run: |
+          echo "Waiting for FlareSolverr..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8191/health; then
+              echo "FlareSolverr is ready."
+              break
+            fi
+            echo "Attempt $i/30 — retrying in 5s..."
+            sleep 5
+          done
+
+      - name: Run scraper
+        env:
+          TARGET_URL: ${{ github.event.inputs.url }}
+        run: python scraper.py
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stream-results
+          path: results.json
+          retention-days: 7
