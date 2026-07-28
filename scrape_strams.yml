@@ -3,14 +3,22 @@ name: Scrape Stream URLs
 on:
   workflow_dispatch:
     inputs:
-      url:
-        description: "URL to scrape"
+      limit:
+        description: "Number of URLs to scrape this run (default: 1000)"
         required: false
-        default: "https://anihq.cc/watch/naruto-shippuuden-episode-500-english-dubbed/"
+        default: "1000"
+      custom_url_list:
+        description: |
+          Optional: paste raw URLs (one per line) to scrape instead of the default list.
+          Leave empty to use anihq2.txt from the repo.
+        required: false
+        default: ""
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     services:
       flaresolverr:
@@ -38,27 +46,55 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Wait for FlareSolverr to be healthy
+      - name: Wait for FlareSolverr
         run: |
-          echo "Waiting for FlareSolverr..."
           for i in $(seq 1 30); do
             if curl -sf http://localhost:8191/health; then
-              echo "FlareSolverr is ready."
+              echo "FlareSolverr ready."
               break
             fi
             echo "Attempt $i/30 — retrying in 5s..."
             sleep 5
           done
 
+      # ── Prepare URL list ────────────────────────────────────────────────
+      - name: Use custom URL list (if provided)
+        if: ${{ github.event.inputs.custom_url_list != '' }}
+        run: |
+          echo "${{ github.event.inputs.custom_url_list }}" > custom_urls.txt
+          echo "Custom URL list lines: $(wc -l < custom_urls.txt)"
+          echo "URL_LIST_FILE=custom_urls.txt" >> $GITHUB_ENV
+
+      - name: Download default URL list (anihq2.txt)
+        if: ${{ github.event.inputs.custom_url_list == '' }}
+        run: |
+          curl -fL \
+            "https://raw.githubusercontent.com/donkarboy/anihq_firesolver/refs/heads/main/anihq2%20(1).json" \
+            -o anihq2.txt
+          echo "Default URL list lines: $(wc -l < anihq2.txt)"
+          echo "URL_LIST_FILE=anihq2.txt" >> $GITHUB_ENV
+
+      # ── Run scraper ─────────────────────────────────────────────────────
       - name: Run scraper
         env:
-          TARGET_URL: ${{ github.event.inputs.url }}
+          LIMIT: ${{ github.event.inputs.limit }}
         run: python scraper.py
 
-      - name: Upload results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: stream-results
-          path: results.json
-          retention-days: 7
+      # ── Commit all output files ─────────────────────────────────────────
+      - name: Commit results to repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage all output files (including rotated copies like .json.1, .txt.1 …)
+          git add media_stream.json          || true
+          git add "media_stream.json.*"      || true
+          git add no_iframe_found.txt        || true
+          git add "no_iframe_found.txt.*"    || true
+          git add urls_already_processed.txt || true
+          git add "urls_already_processed.txt.*" || true
+
+          git diff --cached --quiet \
+            && echo "No changes to commit." \
+            || git commit -m "chore: scrape run — limit=${{ github.event.inputs.limit }}"
+          git push
