@@ -21,7 +21,7 @@
 set_1: https://anihq.cc/watch/bleach-episode-1-english-dubbed/ 1 to 366
 
 # Naruto Shippuuden — English Subbed — episodes 1 to 500
-set_2: https://anihq.cc/watch/naruto-shippuden-episode-1-english-subbed/ 1 to 500
+set_2: https://anihq.cc/watch/bleach-episode-1-english-subbed/ 1 to 366
 
 # Naruto (original) — English Dubbed — episodes 1 to 220
 set_3: https://anihq.cc/watch/naruto-episode-1-english-dubbed/ 1 to 220
