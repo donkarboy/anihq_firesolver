@@ -15,9 +15,11 @@ MEDIA_FOUND_FILE  = "media_found.txt"
 PROCESSED_FILE    = "already_processed_urls.txt"
 MAX_BYTES         = 5 * 1024 * 1024  # 5 MB per file before rotation
 
-# Custom set config — set by workflow; empty string means "don't use"
+# Custom set config — set by workflow; empty string means "don't use".
+# Rule: if CUSTOM_SET_FILE is provided, ONLY those URLs are scraped.
+# The bulk list is NEVER loaded when a custom set file is active.
 CUSTOM_SET_FILE   = os.environ.get("CUSTOM_SET_FILE", "").strip()
-CUSTOM_SET_ONLY   = os.environ.get("CUSTOM_SET_ONLY", "false").strip().lower() == "true"
+CUSTOM_SET_ONLY   = bool(CUSTOM_SET_FILE)   # automatic — no separate env var needed
 
 # ── URL parsing helpers ───────────────────────────────────────────────────────
 
@@ -374,36 +376,27 @@ def processed_urls_from_map(anime_map):
 
 custom_urls = []
 if CUSTOM_SET_FILE:
+    # ── CUSTOM MODE ───────────────────────────────────────────────────────────
+    # When a custom set file is provided, ONLY those URLs are scraped.
+    # The bulk list is never opened, never read, never touched.
+    print(f"[mode] CUSTOM SET — only scraping URLs from: {CUSTOM_SET_FILE}")
+    print("[mode] Bulk URL list is IGNORED.")
     custom_urls = parse_custom_set_file(CUSTOM_SET_FILE)
     if not custom_urls:
-        print("[custom_set] No URLs generated from custom set file.")
-
-# Bulk URL list (only loaded when not in custom-set-only mode)
-bulk_urls = []
-if not CUSTOM_SET_ONLY:
-    print(f"Reading bulk URL list from : {URL_LIST_FILE}")
-    if os.path.exists(URL_LIST_FILE):
-        with open(URL_LIST_FILE, "r", encoding="utf-8") as f:
-            bulk_urls = [l.strip() for l in f if l.strip().startswith("http")]
-        print(f"Total bulk URLs in file    : {len(bulk_urls)}")
-    else:
-        print(f"  [warn] Bulk URL file not found: {URL_LIST_FILE}")
+        print("[custom_set] No URLs generated — check the file format.")
+        sys.exit(0)
+    all_urls = custom_urls
+    print(f"Total URLs to process      : {len(all_urls)}")
 else:
-    print("[mode] CUSTOM_SET_ONLY=true — bulk URL list skipped.")
-
-# Merge: custom URLs first (priority), then bulk; preserve order, deduplicate
-seen_merge = set()
-all_urls   = []
-for u in custom_urls + bulk_urls:
-    if u not in seen_merge:
-        seen_merge.add(u)
-        all_urls.append(u)
-
-print(f"Total unique URLs in queue : {len(all_urls)}")
-if custom_urls:
-    print(f"  ↳ from custom sets       : {len(custom_urls)}")
-if bulk_urls:
-    print(f"  ↳ from bulk file         : {len(bulk_urls)}")
+    # ── BULK MODE ─────────────────────────────────────────────────────────────
+    # No custom set file → normal bulk scrape from the URL list file.
+    print(f"[mode] BULK — reading URL list from: {URL_LIST_FILE}")
+    if not os.path.exists(URL_LIST_FILE):
+        print(f"ERROR: Bulk URL file not found: {URL_LIST_FILE}")
+        sys.exit(1)
+    with open(URL_LIST_FILE, "r", encoding="utf-8") as f:
+        all_urls = [l.strip() for l in f if l.strip().startswith("http")]
+    print(f"Total bulk URLs in file    : {len(all_urls)}")
 
 # ── Load existing state ───────────────────────────────────────────────────────
 
