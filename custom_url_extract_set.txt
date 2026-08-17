@@ -30,7 +30,7 @@ set_3: https://anihq.cc/watch/naruto-episode-1-english-dubbed/ 1 to 220
 set_4: https://anihq.cc/watch/naruto-episode-1-english-subbed/ 1 to 220
 
 # Death Note — English Dubbed — episodes 1 to 37
-set_5: https://anihq.cc/watch/death-note-episode-1-english-dubbed/ 1 to 37
+set_5: https://anihq.cc/watch/one-piece-episode-1-english-subbed/ 1 to 1174
 
 # Death Note — English Subbed — episodes 1 to 37
-set_6: https://anihq.cc/watch/death-note-episode-1-english-subbed/ 1 to 37
+set_6: https://anihq.cc/watch/one-piece-episode-1-english-dubbed/ 1 to 1143
