@@ -10,9 +10,9 @@ on:
 
       use_custom_set:
         description: |
-          Use custom_url_extract_set.txt to generate URLs?
-          yes  → parse the custom set file and scrape those URLs first (or only)
-          no   → ignore the custom set file entirely
+          Use custom_url_extract_set.txt?
+          yes → ONLY scrape URLs generated from that file. Bulk list is ignored entirely.
+          no  → ignore the custom set file and scrape the bulk list as normal.
         required: false
         default: "no"
         type: choice
@@ -27,19 +27,6 @@ on:
           Default: custom_url_extract_set.txt
         required: false
         default: "custom_url_extract_set.txt"
-
-      custom_set_only:
-        description: |
-          When yes: scrape ONLY the URLs generated from the custom set file.
-                    The bulk URL list (anihq2.txt) is skipped entirely.
-          When no:  scrape custom-set URLs first, then continue with bulk list.
-          Only used when use_custom_set = yes.
-        required: false
-        default: "no"
-        type: choice
-        options:
-          - "no"
-          - "yes"
 
 jobs:
   scrape:
@@ -84,27 +71,28 @@ jobs:
             sleep 5
           done
 
-      # ── Custom set validation ──────────────────────────────────────────────
-      # Runs only when use_custom_set = yes.
-      # Checks that the file exists in the repo and prints a preview.
+      # ── Validate custom set file (only when use_custom_set = yes) ──────────
+      # Fails fast with a clear error if the file is missing from the repo,
+      # before any scraping time is wasted.
       - name: Validate custom URL set file
         if: ${{ github.event.inputs.use_custom_set == 'yes' }}
         run: |
           FILE="${{ github.event.inputs.custom_set_file }}"
           if [ ! -f "$FILE" ]; then
             echo "::error::Custom set file not found in repo: $FILE"
-            echo "Create the file and commit it before running with use_custom_set=yes."
+            echo "Create the file, commit it, then re-run with use_custom_set=yes."
             exit 1
           fi
           echo "Custom set file found: $FILE"
           echo "--- Preview (first 20 lines) ---"
           head -n 20 "$FILE"
-          echo "--- Total non-blank lines ---"
-          grep -c '[^[:space:]]' "$FILE" || true
+          echo "--- Total non-blank, non-comment lines ---"
+          grep -cvE '^\s*(#|$)' "$FILE" || true
 
-      # ── Bulk URL list download ─────────────────────────────────────────────
-      # Always downloaded so the scraper can fall back to it when
-      # use_custom_set=no or custom_set_only=no.
+      # ── Download bulk URL list ─────────────────────────────────────────────
+      # Downloaded unconditionally so the file always exists on disk.
+      # When use_custom_set=yes the scraper sets CUSTOM_SET_ONLY=true and
+      # never reads this file — the download cost is negligible (~1 s).
       - name: Download bulk URL list
         run: |
           curl -fL \
@@ -113,38 +101,23 @@ jobs:
           echo "Lines in bulk URL list: $(wc -l < anihq2.txt)"
 
       # ── Run scraper ────────────────────────────────────────────────────────
-      # Environment variables control which mode the scraper runs in:
-      #
-      #   CUSTOM_SET_FILE   – path to the custom set file (empty = disabled)
-      #   CUSTOM_SET_ONLY   – true/false; skip bulk list when true
-      #
-      # When use_custom_set = no, CUSTOM_SET_FILE is left empty so the scraper
-      # ignores custom-set logic entirely and behaves like before.
+      # CUSTOM_SET_FILE  — path to the set file, or empty when use_custom_set=no
+      # CUSTOM_SET_ONLY  — automatically "true" whenever CUSTOM_SET_FILE is set,
+      #                    so the bulk list is NEVER mixed in on a custom run.
       - name: Run scraper
         env:
           URL_LIST_FILE: anihq2.txt
           LIMIT: ${{ github.event.inputs.limit }}
-          CUSTOM_SET_FILE: >-
-            ${{
-              github.event.inputs.use_custom_set == 'yes'
-              && github.event.inputs.custom_set_file
-              || ''
-            }}
-          CUSTOM_SET_ONLY: >-
-            ${{
-              github.event.inputs.use_custom_set == 'yes'
-              && github.event.inputs.custom_set_only
-              || 'false'
-            }}
+          CUSTOM_SET_FILE: ${{ github.event.inputs.use_custom_set == 'yes' && github.event.inputs.custom_set_file || '' }}
+          CUSTOM_SET_ONLY: ${{ github.event.inputs.use_custom_set == 'yes' && 'true' || 'false' }}
         run: python scraper.py
 
-      # ── Commit all results ────────────────────────────────────────────────
+      # ── Commit all results ─────────────────────────────────────────────────
       - name: Commit all results to repo
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Stage main output + any rotated splits (.1 .2 .3 …)
           git add media_stream.json              2>/dev/null || true
           git add media_stream.json.*            2>/dev/null || true
           git add no_media_found.txt             2>/dev/null || true
@@ -154,14 +127,10 @@ jobs:
           git add already_processed_urls.txt     2>/dev/null || true
           git add already_processed_urls.txt.*   2>/dev/null || true
 
-          # Build a descriptive commit message showing which mode ran
-          MODE="bulk"
           if [ "${{ github.event.inputs.use_custom_set }}" = "yes" ]; then
-            if [ "${{ github.event.inputs.custom_set_only }}" = "yes" ]; then
-              MODE="custom-only(${{ github.event.inputs.custom_set_file }})"
-            else
-              MODE="custom+bulk(${{ github.event.inputs.custom_set_file }})"
-            fi
+            MODE="custom-only(${{ github.event.inputs.custom_set_file }})"
+          else
+            MODE="bulk"
           fi
 
           git diff --cached --quiet \
