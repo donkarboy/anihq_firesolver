@@ -21,19 +21,29 @@ def parse_watch_url(url):
     """
     Parse an AniHQ watch URL into its components.
 
-    Expected URL pattern:
-      https://anihq.to/watch/{anime-slug}-episode-{N}-{dub|sub}
-      or variations like:
-      https://anihq.to/watch/{anime-slug}-episode-{N}         (no type suffix)
+    Handles all observed suffix variants after the episode number:
+      -english-dubbed        → dub
+      -english-subbed        → sub
+      -dubbed                → dub
+      -subbed                → sub
+      -dub                   → dub
+      -sub                   → sub
+      (nothing)              → sub  (default)
+
+    Examples:
+      .../watch/naruto-episode-220-english-dubbed/      → dub
+      .../watch/naruto-shippuuden-episode-485-english-dubbed/ → dub
+      .../watch/some-anime-episode-1-subbed/            → sub
+      .../watch/some-anime-episode-1/                   → sub
 
     Returns a dict:
       {
-        "anime_key":    str,   # normalised slug, e.g. "100-man-no-inochi-..."
-        "title":        str,   # human title, e.g. "100 Man No Inochi..."
-        "episode":      int,   # episode number
-        "media_type":   str,   # "dub", "sub", or "unknown"
+        "anime_key":  str,   # normalised slug, e.g. "naruto-shippuuden"
+        "title":      str,   # human title,     e.g. "Naruto Shippuuden"
+        "episode":    int,   # episode number
+        "media_type": str,   # "dub" or "sub"
       }
-    or None if the URL doesn't match the expected pattern.
+    or None if the URL doesn't contain /watch/ or an episode number.
     """
     # Isolate everything after /watch/
     m = re.search(r'/watch/(.+?)/?$', url.rstrip('/'))
@@ -42,18 +52,40 @@ def parse_watch_url(url):
 
     slug = m.group(1).lower()
 
-    # Match the episode number and optional type suffix
-    # Pattern: ...{slug}-episode-{N}-{dub|sub}  OR  ...{slug}-episode-{N}
-    ep_match = re.search(
-        r'^(.+?)-episode-(\d+)(?:-(dub|sub))?$',
-        slug
-    )
+    # Split on "-episode-" to separate anime slug from the rest
+    # Use maxsplit=1 so anime slugs that contain "episode" are handled correctly
+    parts = slug.split("-episode-", 1)
+    if len(parts) != 2:
+        return None
+
+    anime_slug  = parts[0]   # e.g. "naruto-shippuuden"
+    after_ep    = parts[1]   # e.g. "485-english-dubbed" or "1-dub" or "3"
+
+    # Extract the leading integer (episode number) and the remaining suffix
+    ep_match = re.match(r'^(\d+)(?:-(.+))?$', after_ep)
     if not ep_match:
         return None
 
-    anime_slug  = ep_match.group(1)          # e.g. "100-man-no-inochi-..."
-    episode_num = int(ep_match.group(2))     # e.g. 1
-    media_type  = ep_match.group(3) or "sub" # "dub", "sub", default "sub"
+    episode_num   = int(ep_match.group(1))          # e.g. 485
+    suffix        = ep_match.group(2) or ""          # e.g. "english-dubbed" or ""
+
+    # Map every known suffix pattern to dub / sub
+    # Order matters: check longer/more-specific patterns first
+    DUB_PATTERNS = re.compile(
+        r'^(english[-\s]dubbed?|dubbed?|dub)$', re.IGNORECASE
+    )
+    SUB_PATTERNS = re.compile(
+        r'^(english[-\s]subbed?|subbed?|sub)$', re.IGNORECASE
+    )
+
+    if DUB_PATTERNS.match(suffix):
+        media_type = "dub"
+    elif SUB_PATTERNS.match(suffix) or suffix == "":
+        media_type = "sub"
+    else:
+        # Unknown suffix — log it but still parse; treat as sub
+        media_type = "sub"
+        print(f"  [warn] Unrecognised suffix {suffix!r} in {url!r} — treating as sub")
 
     # Build human-readable title from the anime slug
     title = anime_slug.replace("-", " ").title()
