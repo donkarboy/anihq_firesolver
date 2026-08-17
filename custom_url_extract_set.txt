@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# custom_url_extract_set.txt
+# ─────────────────────────────────────────────────────────────────────────────
+# Format:
+#   set_N: <template_url_with_episode_1_in_it> <start> to <end>
+#
+# Rules:
+#   • The template URL MUST contain "-episode-<number>" somewhere in the path.
+#     The scraper replaces that number with each episode in the range.
+#   • Episode range is inclusive: "1 to 500" generates episodes 1, 2, … 500.
+#   • Lines starting with # are comments and are ignored.
+#   • Blank lines are ignored.
+#   • Duplicate generated URLs (same anime+episode+type appearing in two sets)
+#     are automatically deduplicated — each URL is only scraped once.
+#   • Sets are processed in the order they appear in this file.
+#   • Custom-set URLs are always scraped BEFORE the bulk list.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Naruto Shippuuden — English Dubbed — episodes 1 to 500
+set_1: https://anihq.cc/watch/naruto-shippuuden-episode-1-english-dubbed/ 1 to 500
+
+# Naruto Shippuuden — English Subbed — episodes 1 to 500
+set_2: https://anihq.cc/watch/naruto-shippuuden-episode-1-english-subbed/ 1 to 500
+
+# Naruto (original) — English Dubbed — episodes 1 to 220
+set_3: https://anihq.cc/watch/naruto-episode-1-english-dubbed/ 1 to 220
+
+# Naruto (original) — English Subbed — episodes 1 to 220
+set_4: https://anihq.cc/watch/naruto-episode-1-english-subbed/ 1 to 220
+
+# Death Note — English Dubbed — episodes 1 to 37
+set_5: https://anihq.cc/watch/death-note-episode-1-english-dubbed/ 1 to 37
+
+# Death Note — English Subbed — episodes 1 to 37
+set_6: https://anihq.cc/watch/death-note-episode-1-english-subbed/ 1 to 37
