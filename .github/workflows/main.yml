@@ -6,7 +6,7 @@ on:
       limit:
         description: "Number of URLs to scrape this run (1 to any, default 1000)"
         required: false
-        default: "1000"
+        default: "10000"
 
       use_custom_set:
         description: |
