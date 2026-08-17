@@ -69,7 +69,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Stage main files + any rotated splits (.1 .2 .3 …)
+          # Stage main output + any rotated splits (.1 .2 .3 …)
           git add media_stream.json              2>/dev/null || true
           git add media_stream.json.*            2>/dev/null || true
           git add no_media_found.txt             2>/dev/null || true
